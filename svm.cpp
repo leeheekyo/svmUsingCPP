@@ -20,7 +20,7 @@ public:
 		int ret_val;
 		double calc_val;
 		
-		// calulate differente of slope ( between this and p1 ) and ( between this and p2 )
+		// calculate differente of slope ( between this and p1 ) and ( between this and p2 )
 		// (p1.x2 - x2) / (p1.x1 - x1) > (p2.x2 - x2) / (p2.0x1 - x1) == p1 > p2
 		calc_val = (p1.x2-x2) * (p2.x1 - x1) - (p2.x2 - x2) * (p1.x1 - x1);
 		// positive value
@@ -63,13 +63,17 @@ public:
 	
 	// get distance between eaulation w and point(this)
 	double getWeightDistance(double w[3]){
+		double numerator_val = w[0]*x1 + w[1]*x2 + w[2];
 		// abs( w1*x1 + w2*x2 + w3) / sqrt( w[0]*w[0] + w[1]*w[1] ) 
-		return w[0]*x1 + w[1]*x2 + w[2] / sqrt( w[0]*w[0] + w[1]*w[1] );
+		if( numerator_val < 0 ){
+			numerator_val = - numerator_val;
+		}
+		return numerator_val / sqrt( w[0]*w[0] + w[1]*w[1] );
 	}
 	
-	// set weight value on w using ( metholine vector made by this and p ), and ( middle point between this and p )
+	// set weight value on w using ( nomal vector made by this and p ), and ( middle point between this and p )
 	void getWeight(Point p, double w[3]){
-		// methodline vector
+		// nomal vector
 		w[0] = x1-p.x1;
 		w[1] = x2-p.x2;
 		
@@ -80,9 +84,9 @@ public:
 		w[2] = -( w[0] * mid_x1 + w[1] * mid_x2 );
 	}
 	
-	// set weight value on w using ( metholine vector made by p1 and p2 ), and ( middle point between this and p1 )
+	// set weight value on w using ( nomal vector made by p1 and p2 ), and ( middle point between this and p1 )
 	void getWeight(Point p1, Point p2, double w[3]){
-		// methodline vector using linear equation between p1 and p2
+		// nomal vector using linear equation between p1 and p2
 		w[0] = p1.x2-p2.x2;
 		w[1] = -(p1.x1-p2.x1);
 		
@@ -308,7 +312,7 @@ void SVM::learning(){
 	Point base_point2;
 	double signed_area_val;
 	double max_signed_area_val;   // it is negative value
-	int max_signed_area_state[3]; // (positive or negative), target_index, min_index_in_oppersite
+	int max_signed_area_point; // target_index, min_index_in_oppersite
 	int i, j, k;
 	int len;
 	bool flag;
@@ -321,12 +325,16 @@ void SVM::learning(){
 		positive_target_point[i] = false;
 		negative_target_point[i] = false;
 	}
+	max_distance = MIN_GAP;
 	
 	// get all positive target edges and calculate max distance
-	max_signed_area_val = -MAX_VAL;
 	len = positive_len-1;
 	for( i=0; i<len; i++ ){
+		// check change value
 		flag = true;
+		// initial maximum value
+		max_signed_area_val = -MAX_VAL;
+		// value for calculate signed area
 		base_point1 = positive_convex.getPoint(i);
 		base_point2 = positive_convex.getPoint(i+1);
 		for( j=0; j<negative_len-1; j++ ){
@@ -336,16 +344,33 @@ void SVM::learning(){
 				flag = false;
 				break;
 			}
+			// not exists positive value
 			else{
+				// check the closest point
 				if( max_signed_area_val < signed_area_val ){
 					max_signed_area_val = signed_area_val;
-					max_signed_area_state[0] = 1;
-					max_signed_area_state[1] = i;
-					max_signed_area_state[2] = j;
+					max_signed_area_point = j;
 				}
 			}
 		}
 		if( flag == true ){
+			// calculate disatnce using edge.
+			base_point1 = negative_convex.getPoint(max_signed_area_point); // oppersite point
+			base_point1.getWeight(
+				positive_convex.getPoint(i),   // start point
+				positive_convex.getPoint(i+1), // end point
+				tmp_w);
+			tmp_distance = base_point1.getWeightDistance(tmp_w) / 2;
+			
+			// check max value
+			if( tmp_distance>max_distance ){
+				max_distance = tmp_distance;
+				for( k=0; k<3; k++ ){
+					w[k] = tmp_w[k];
+				}
+			}
+			
+			// add points
 			positive_target_point[i] = true;
 			positive_target_point[i+1] = true;
 		}
@@ -353,7 +378,11 @@ void SVM::learning(){
 	// get all negative target edge and calculate max distance
 	len = negative_len-1;
 	for( i=0; i<len; i++ ){
+		// check change value
 		flag = true;
+		// initial maximum value
+		max_signed_area_val = -MAX_VAL;
+		// value for calculate signed area
 		base_point1 = negative_convex.getPoint(i);
 		base_point2 = negative_convex.getPoint(i+1);
 		for( j=0; j<positive_len-1; j++ ){
@@ -363,40 +392,36 @@ void SVM::learning(){
 				flag = false;
 				break;
 			}
+			// not exists positive value
 			else{
+				// check the closest point
 				if( max_signed_area_val < signed_area_val ){
 					max_signed_area_val = signed_area_val;
-					max_signed_area_state[0] = 0;
-					max_signed_area_state[1] = i;
-					max_signed_area_state[2] = j;
+					max_signed_area_point = j;
 				}
 			}
 		}
 		if( flag == true ){
+			// calculate disatnce using edge.
+			base_point1 = positive_convex.getPoint(max_signed_area_point); // oppersite point
+			base_point1.getWeight(
+				negative_convex.getPoint(i),   // start point
+				negative_convex.getPoint(i+1), // end point
+				tmp_w);
+			tmp_distance = base_point1.getWeightDistance(tmp_w) / 2;
+			
+			// check max value
+			if( tmp_distance>max_distance ){
+				max_distance = tmp_distance;
+				for( k=0; k<3; k++ ){
+					w[k] = tmp_w[k];
+				}
+			}
+			
 			negative_target_point[i] = true;
 			negative_target_point[i+1] = true;
 		}
 	}
-	
-	// get weight value and distance
-	// positive than
-	if( max_signed_area_state[0] == 1 ){
-		// oppersite point
-		base_point1 = negative_convex.getPoint(max_signed_area_state[2]);
-		base_point1.getWeight(
-			positive_convex.getPoint(max_signed_area_state[1]),   // start point
-			positive_convex.getPoint(max_signed_area_state[1]+1), // end point
-			w);
-	}
-	else{
-		// oppersite point
-		base_point1 = positive_convex.getPoint(max_signed_area_state[2]);
-		base_point1.getWeight(
-			negative_convex.getPoint(max_signed_area_state[1]),   // start point
-			negative_convex.getPoint(max_signed_area_state[1]+1), // end point
-			w);
-	}
-	max_distance = base_point1.getWeightDistance(w);
 	
 	// calculate distance in target node 
 	for( i=0; i<CNT; i++ ){
@@ -411,6 +436,7 @@ void SVM::learning(){
 				
 				distance = base_point1.getDistance(base_point2) / 2;
 				
+				// check the validation in positive convex
 				for( k=0; k<CNT; k++ ){
 					if( positive_target_point[k] == true && k != i ){
 						tmp_distance = positive_convex.getPoint(k).getWeightDistance(tmp_w);
@@ -421,13 +447,16 @@ void SVM::learning(){
 						}
 					}
 				}
-				for( k=0; k<CNT; k++ ){
-					if( positive_target_point[k] == true && k != j ){
-						tmp_distance = negative_convex.getPoint(k).getWeightDistance(tmp_w);
-						
-						if( distance - tmp_distance > MIN_GAP ){
-							is_valid = false;
-							break;
+				// check the validation in negative convex
+				if( is_valid == true ){
+					for( k=0; k<CNT; k++ ){
+						if( positive_target_point[k] == true && k != j ){
+							tmp_distance = negative_convex.getPoint(k).getWeightDistance(tmp_w);
+							
+							if( distance - tmp_distance > MIN_GAP ){
+								is_valid = false;
+								break;
+							}
 						}
 					}
 				}
@@ -452,7 +481,7 @@ void SVM::learning(){
 int main(){
 	// input data
 	double x[CNT][2] = { 
-		  {-1, 3}
+		  {-1, 5}
 		, {1, 2}
 		, {1, 3}
 		, {0, 0}
